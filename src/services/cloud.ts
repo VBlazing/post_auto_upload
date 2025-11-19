@@ -1,3 +1,10 @@
+/*
+ * @Author: VBlazing
+ * @Date: 2025-11-18 21:17:09
+ * @LastEditors: VBlazing
+ * @LastEditTime: 2025-11-19 14:04:22
+ * @Description: cloud service
+ */
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
