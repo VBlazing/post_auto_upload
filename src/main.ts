@@ -1,6 +1,6 @@
 import chokidar from 'chokidar';
 import path from 'node:path';
-import { POSTS_DIR, REQUEST_DATA_PATH, WATCH_DEBOUNCE_MS } from './config';
+import { POSTS_DIR, UPLOAD_DATA_DIR, WATCH_DEBOUNCE_MS } from './config';
 import {
   cleanupTemp,
   ensureDir,
@@ -60,7 +60,8 @@ async function processLatestArchive() {
     );
     const transformed = await transformMarkdown(layout.markdownPath, assetMap);
     const title = transformed.title || layout.inferredTitle;
-    await writeJSON(REQUEST_DATA_PATH, transformed.requestBody);
+    const requestFilePath = buildRequestFilePath(transformed.requestBody.slug);
+    await writeJSON(requestFilePath, transformed.requestBody);
     const remote = await uploadPost({
       title,
       body: transformed.content,
@@ -82,6 +83,7 @@ async function processLatestArchive() {
 
 async function bootstrap() {
   await ensureDir(POSTS_DIR);
+  await ensureDir(UPLOAD_DATA_DIR);
   console.log(`监听目录：${POSTS_DIR}`);
   const watcher = chokidar.watch(POSTS_DIR, {
     ignoreInitial: false,
@@ -105,6 +107,11 @@ function debounce(fn: () => void, delayMs: number) {
     }
     timer = setTimeout(fn, delayMs);
   };
+}
+
+function buildRequestFilePath(slug: string): string {
+  const safeSlug = slug.replace(/[^a-zA-Z0-9._-]/g, '-');
+  return path.join(UPLOAD_DATA_DIR, `${safeSlug}.json`);
 }
 
 bootstrap().catch(error => {

@@ -188,8 +188,14 @@ function buildRequestBody(
   if (typeof parsedJson !== 'object' || parsedJson === null || Array.isArray(parsedJson)) {
     throw new Error('“数据”代码块 JSON 必须是对象');
   }
+  const raw = parsedJson as Record<string, unknown>;
+  const slug = raw.slug;
+  if (typeof slug !== 'string' || !slug.trim()) {
+    throw new Error('请求数据中缺少合法的 slug 字段');
+  }
   const body: ArticleRequestBody = {
-    ...(parsedJson as Record<string, unknown>),
+    ...raw,
+    slug: slug.trim(),
     content
   };
   return body;

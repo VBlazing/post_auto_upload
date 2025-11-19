@@ -17,6 +17,7 @@ export interface ArchiveLayout {
 }
 
 export type ArticleRequestBody = Record<string, unknown> & {
+  slug: string;
   content: string;
 };
 
