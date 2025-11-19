@@ -16,9 +16,14 @@ export interface ArchiveLayout {
   inferredTitle: string;
 }
 
+export type ArticleRequestBody = Record<string, unknown> & {
+  content: string;
+};
+
 export interface UploadPostPayload {
   title: string;
   body: string;
+  requestData: ArticleRequestBody;
 }
 
 export interface UploadPostResult {

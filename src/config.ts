@@ -4,6 +4,7 @@ export const ROOT_DIR = process.cwd();
 export const POSTS_DIR = path.resolve(ROOT_DIR, 'posts');
 export const TEMP_DIR = path.resolve(ROOT_DIR, '.tmp');
 export const MANIFEST_PATH = path.resolve(ROOT_DIR, 'processed-posts.json');
+export const REQUEST_DATA_PATH = path.resolve(ROOT_DIR, 'data');
 export const SUPPORTED_ARCHIVE_EXTENSIONS = ['.zip'];
 export const IMAGE_EXTENSIONS = new Set([
   '.png',

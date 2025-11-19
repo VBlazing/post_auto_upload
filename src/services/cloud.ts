@@ -40,7 +40,11 @@ export async function uploadPost(
   payload: UploadPostPayload
 ): Promise<UploadPostResult> {
   await delay(250);
-  const slug = slugify(payload.title);
+  const candidateTitle =
+    typeof payload.requestData.title === 'string'
+      ? String(payload.requestData.title)
+      : payload.title;
+  const slug = slugify(candidateTitle || payload.title);
   return {
     id: randomUUID(),
     url: `https://blog.example.com/${slug}`

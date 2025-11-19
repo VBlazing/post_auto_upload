@@ -82,6 +82,7 @@ export async function extractArchive(
   await ensureDir(stagingPath);
   const zip = new AdmZip(archivePath);
   zip.extractAllTo(stagingPath, true);
+  await expandNestedArchives(stagingPath);
   return {
     stagingPath,
     hash: hash ?? (await hashFile(archivePath)),
@@ -99,4 +100,48 @@ export async function readManifest(): Promise<ProcessedManifest> {
 
 export async function writeManifest(data: ProcessedManifest): Promise<void> {
   await writeJSON(MANIFEST_PATH, data);
+}
+
+async function expandNestedArchives(stagingPath: string): Promise<void> {
+  for (let depth = 0; depth < 3; depth += 1) {
+    if (await containsMarkdown(stagingPath)) {
+      return;
+    }
+    const nestedArchives = await listImmediateZips(stagingPath);
+    if (!nestedArchives.length) {
+      return;
+    }
+    for (const nestedZip of nestedArchives) {
+      const zip = new AdmZip(nestedZip);
+      zip.extractAllTo(path.dirname(nestedZip), true);
+      await fs.rm(nestedZip, { force: true });
+    }
+  }
+}
+
+async function containsMarkdown(dir: string): Promise<boolean> {
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
+      return true;
+    }
+    if (entry.isDirectory() && (await containsMarkdown(fullPath))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function listImmediateZips(dir: string): Promise<string[]> {
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const result: string[] = [];
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    if (!SUPPORTED_ARCHIVE_EXTENSIONS.includes(path.extname(entry.name).toLowerCase())) {
+      continue;
+    }
+    result.push(path.join(dir, entry.name));
+  }
+  return result;
 }

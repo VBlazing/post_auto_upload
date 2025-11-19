@@ -1,12 +1,13 @@
 import chokidar from 'chokidar';
 import path from 'node:path';
-import { POSTS_DIR, WATCH_DEBOUNCE_MS } from './config';
+import { POSTS_DIR, REQUEST_DATA_PATH, WATCH_DEBOUNCE_MS } from './config';
 import {
   cleanupTemp,
   ensureDir,
   extractArchive,
   hashFile,
-  listArchives
+  listArchives,
+  writeJSON
 } from './utils/fs';
 import { detectLayout } from './services/archive';
 import { uploadAssets, uploadPost } from './services/cloud';
@@ -59,7 +60,12 @@ async function processLatestArchive() {
     );
     const transformed = await transformMarkdown(layout.markdownPath, assetMap);
     const title = transformed.title || layout.inferredTitle;
-    const remote = await uploadPost({ title, body: transformed.content });
+    await writeJSON(REQUEST_DATA_PATH, transformed.requestBody);
+    const remote = await uploadPost({
+      title,
+      body: transformed.content,
+      requestData: transformed.requestBody
+    });
     await tracker.markProcessed({
       archiveName: latest.name,
       hash,
@@ -79,7 +85,10 @@ async function bootstrap() {
   console.log(`监听目录：${POSTS_DIR}`);
   const watcher = chokidar.watch(POSTS_DIR, {
     ignoreInitial: false,
-    depth: 0
+    depth: 0,
+    usePolling: true,
+    interval: 1000,
+    binaryInterval: 2000
   });
   const debounced = debounce(() => triggerProcessing('文件变化'), WATCH_DEBOUNCE_MS);
   watcher.on('add', () => debounced());
