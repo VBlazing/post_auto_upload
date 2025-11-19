@@ -11,7 +11,7 @@ import {
 } from './utils/fs';
 import { detectLayout } from './services/archive';
 import { uploadAssets, uploadPost } from './services/cloud';
-import { transformMarkdown } from './utils/markdown';
+import { peekRequestData, transformMarkdown } from './utils/markdown';
 import { tracker } from './services/tracker';
 
 let processing = false;
@@ -54,9 +54,11 @@ async function processLatestArchive() {
   const extraction = await extractArchive(latest.path, hash);
   try {
     const layout = await detectLayout(extraction.stagingPath);
+    const requestMeta = await peekRequestData(layout.markdownPath);
     const assetMap = await uploadAssets(
       layout.assetsDir,
-      path.dirname(layout.markdownPath)
+      path.dirname(layout.markdownPath),
+      requestMeta.slug
     );
     const transformed = await transformMarkdown(layout.markdownPath, assetMap);
     const title = transformed.title || layout.inferredTitle;

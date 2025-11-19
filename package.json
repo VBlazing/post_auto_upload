@@ -9,6 +9,7 @@
   "dependencies": {
     "adm-zip": "^0.5.16",
     "chokidar": "^4.0.3",
+    "cos-nodejs-sdk-v5": "^2.15.4",
     "gray-matter": "^4.0.3",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",

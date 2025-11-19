@@ -17,6 +17,22 @@ interface TransformResult {
   requestBody: ArticleRequestBody;
 }
 
+interface ParsedDataSection {
+  raw: Record<string, unknown>;
+  slug: string;
+}
+
+export async function peekRequestData(markdownPath: string): Promise<ParsedDataSection> {
+  const raw = await fs.readFile(markdownPath, 'utf-8');
+  const parsed = matter(raw);
+  const processor = unified()
+    .use(remarkParse)
+    .use(remarkGfm);
+  const tree = processor.parse(parsed.content) as Root;
+  const { dataSectionNodes } = stripSpecialSections(tree);
+  return parseDataSection(dataSectionNodes);
+}
+
 export async function transformMarkdown(
   markdownPath: string,
   assetMap: Map<string, string>
@@ -30,6 +46,7 @@ export async function transformMarkdown(
     .use(remarkStringify, { fences: true, bullet: '-', listItemIndent: 'one' });
   const tree = processor.parse(parsed.content) as Root;
   const { dataSectionNodes } = stripSpecialSections(tree);
+  const parsedDataSection = parseDataSection(dataSectionNodes);
   const imageNodes: Image[] = [];
   visit(tree as any, 'image', node => {
     imageNodes.push(node as Image);
@@ -43,7 +60,12 @@ export async function transformMarkdown(
     const normalizedKey = normalizeMarkdownPath(originalUrl);
     let remoteUrl = assetMap.get(normalizedKey);
     if (!remoteUrl) {
-      remoteUrl = await tryUploadFromDisk(markdownDir, originalUrl, assetMap);
+      remoteUrl = await tryUploadFromDisk(
+        markdownDir,
+        originalUrl,
+        assetMap,
+        parsedDataSection.slug
+      );
     }
     if (remoteUrl) {
       node.url = remoteUrl;
@@ -56,7 +78,7 @@ export async function transformMarkdown(
   const processed = (await processor.run(tree)) as Root;
   const transformedContent = processor.stringify(processed as any);
   const normalizedContent = trimLeadingWhitespace(transformedContent);
-  const requestBody = buildRequestBody(dataSectionNodes, normalizedContent);
+  const requestBody = composeRequestBody(parsedDataSection, normalizedContent);
   const finalMarkdown = matter.stringify(
     normalizedContent,
     parsed.data ?? undefined
@@ -79,21 +101,24 @@ function isRemoteUrl(url: string): boolean {
 }
 
 function normalizeMarkdownPath(input: string): string {
-  return input.replace(/\\/g, '/').replace(/^\.\//, '');
+  const decoded = decodeMarkdownReference(input);
+  return decoded.replace(/\\/g, '/').replace(/^\.\//, '');
 }
 
 async function tryUploadFromDisk(
   markdownDir: string,
   referencePath: string,
-  assetMap: Map<string, string>
+  assetMap: Map<string, string>,
+  slug: string
 ): Promise<string | undefined> {
-  const absolute = path.resolve(markdownDir, referencePath);
+  const decodedReference = decodeMarkdownReference(referencePath);
+  const absolute = path.resolve(markdownDir, decodedReference);
   try {
     await fs.access(absolute);
   } catch {
     return undefined;
   }
-  const uploaded = await uploadImage(absolute);
+  const uploaded = await uploadImage(absolute, slug);
   const normalized = normalizeMarkdownPath(
     path.relative(markdownDir, absolute).replace(/\\/g, '/')
   );
@@ -166,10 +191,17 @@ function findSectionEnd(
   return cursor;
 }
 
-function buildRequestBody(
-  sectionNodes: Content[] | undefined,
-  content: string
-): ArticleRequestBody {
+function composeRequestBody(parsedData: ParsedDataSection, content: string): ArticleRequestBody {
+  return {
+    ...parsedData.raw,
+    slug: parsedData.slug,
+    content
+  };
+}
+
+function parseDataSection(
+  sectionNodes: Content[] | undefined
+): ParsedDataSection {
   if (!sectionNodes) {
     throw new Error('未找到“数据”章节，无法构建请求数据');
   }
@@ -193,14 +225,20 @@ function buildRequestBody(
   if (typeof slug !== 'string' || !slug.trim()) {
     throw new Error('请求数据中缺少合法的 slug 字段');
   }
-  const body: ArticleRequestBody = {
-    ...raw,
-    slug: slug.trim(),
-    content
+  return {
+    raw,
+    slug: slug.trim()
   };
-  return body;
 }
 
 function trimLeadingWhitespace(value: string): string {
   return value.replace(/^\s+/, '');
+}
+
+function decodeMarkdownReference(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }

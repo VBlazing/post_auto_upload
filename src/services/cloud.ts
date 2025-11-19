@@ -2,23 +2,44 @@
  * @Author: VBlazing
  * @Date: 2025-11-18 21:17:09
  * @LastEditors: VBlazing
- * @LastEditTime: 2025-11-19 15:40:39
+ * @LastEditTime: 2025-11-19 22:47:54
  * @Description: cloud service
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { BLOG_API_BASE_URL, IMAGE_EXTENSIONS } from '../config';
+import COS from 'cos-nodejs-sdk-v5';
+import {
+  BLOG_API_BASE_URL,
+  COS_BUCKET,
+  COS_BUCKET_REGION,
+  COS_PUBLIC_BASE_URL,
+  COS_PROXY,
+  COS_SECRET_ID,
+  COS_SECRET_KEY,
+  IMAGE_EXTENSIONS
+} from '../config';
 import { ArticleRequestBody, UploadPostPayload, UploadPostResult } from '../types';
 
-export async function uploadImage(localPath: string): Promise<string> {
-  await delay(150);
+const cosClient = new COS({
+  SecretId: COS_SECRET_ID,
+  SecretKey: COS_SECRET_KEY,
+  AutoSwitchHost: false,
+  ...(COS_PROXY ? { Proxy: COS_PROXY } : {})
+});
+
+export async function uploadImage(localPath: string, slug: string): Promise<string> {
+  const fileContent = await fs.readFile(localPath);
   const filename = path.basename(localPath);
-  return `https://cdn.example.com/${Date.now()}-${filename}`;
+  const sanitizedName = stripWhitespace(filename);
+  const key = buildCosObjectKey(slug, sanitizedName);
+  await putObjectToCos(key, fileContent);
+  return buildCosFileUrl(key);
 }
 
 export async function uploadAssets(
   assetsDir: string | undefined,
-  markdownDir: string
+  markdownDir: string,
+  slug: string
 ): Promise<Map<string, string>> {
   const result = new Map<string, string>();
   if (!assetsDir) return result;
@@ -26,7 +47,7 @@ export async function uploadAssets(
   if (!exists) return result;
   const files = await collectAssetFiles(assetsDir);
   for (const file of files) {
-    const remoteUrl = await uploadImage(file);
+    const remoteUrl = await uploadImage(file, slug);
     const relative = path.relative(markdownDir, file);
     const normalized = normalizeRelative(relative);
     result.set(normalized, remoteUrl);
@@ -129,4 +150,64 @@ function ensureTrailingSlash(input: string): string {
 
 function trimTrailingSlash(input: string): string {
   return input.endsWith('/') ? input.slice(0, -1) : input;
+}
+
+function buildCosObjectKey(slug: string, filename: string): string {
+  const safeSlug = sanitizeSlug(slug);
+  const encodedFile = encodeURIComponent(filename);
+  const key = `${safeSlug}/${encodedFile}`;
+  return key.replace(/^\/+/, '');
+}
+
+function sanitizeSlug(slug: string): string {
+  const trimmed = slug.trim().replace(/^\/*|\/*$/g, '');
+  return trimmed || 'post';
+}
+
+function putObjectToCos(key: string, body: Buffer): Promise<void> {
+  return new Promise((resolve, reject) => {
+    cosClient.putObject(
+      {
+        Bucket: COS_BUCKET,
+        Region: COS_BUCKET_REGION,
+        Key: key,
+        Body: body,
+        ContentLength: body.length
+      },
+      (error, data) => {
+        console.log('res', error, data)
+        if (error) {
+          const reason = extractCosErrorReason(error);
+          reject(new Error(`上传图片到 COS 失败，key=${key}，原因：${reason}`));
+          return;
+        }
+        resolve();
+      }
+    );
+  });
+}
+
+function buildCosFileUrl(key: string): string {
+  return `${COS_PUBLIC_BASE_URL}/${key}`.replace(/([^:]\/)\/+/g, '$1');
+}
+
+function extractCosErrorReason(error: unknown): string {
+  if (!error) {
+    return '未知错误';
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  const message =
+    (error as { error?: { Message?: string }; message?: string }).error?.Message ??
+    (error as { message?: string }).message;
+  return message || '未知错误';
+}
+
+function stripWhitespace(filename: string): string {
+  const noWhitespace = filename.replace(/\s+/g, '');
+  return noWhitespace.length ? noWhitespace : filename;
 }
