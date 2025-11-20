@@ -2,7 +2,7 @@
  * @Author: VBlazing
  * @Date: 2025-11-18 21:17:09
  * @LastEditors: VBlazing
- * @LastEditTime: 2025-11-19 22:47:54
+ * @LastEditTime: 2025-11-20 10:10:11
  * @Description: cloud service
  */
 import fs from 'node:fs/promises';
@@ -175,7 +175,6 @@ function putObjectToCos(key: string, body: Buffer): Promise<void> {
         ContentLength: body.length
       },
       (error, data) => {
-        console.log('res', error, data)
         if (error) {
           const reason = extractCosErrorReason(error);
           reject(new Error(`上传图片到 COS 失败，key=${key}，原因：${reason}`));

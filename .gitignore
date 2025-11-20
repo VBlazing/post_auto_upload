@@ -2,6 +2,8 @@
 /node_modules
 /posts
 /upload_data
-/processed-posts.json
-/.env
+/processed-posts.prod.json
+.env
 /.tmp
+
+.DS_Store

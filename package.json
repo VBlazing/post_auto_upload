@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "dev": "ts-node src/main.ts"
+    "dev": "NODE_ENV=development ts-node src/main.ts",
+    "online": "NODE_ENV=production pnpm run build && NODE_ENV=production node dist/main.js"
   },
   "dependencies": {
     "adm-zip": "^0.5.16",

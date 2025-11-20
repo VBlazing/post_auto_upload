@@ -4,8 +4,6 @@ import path from 'node:path';
 export const ROOT_DIR = process.cwd();
 export const POSTS_DIR = path.resolve(ROOT_DIR, 'posts');
 export const TEMP_DIR = path.resolve(ROOT_DIR, '.tmp');
-export const MANIFEST_PATH = path.resolve(ROOT_DIR, 'processed-posts.json');
-export const UPLOAD_DATA_DIR = path.resolve(ROOT_DIR, 'upload_data');
 export const SUPPORTED_ARCHIVE_EXTENSIONS = ['.zip'];
 export const IMAGE_EXTENSIONS = new Set([
   '.png',
@@ -24,6 +22,9 @@ export const WATCH_DEBOUNCE_MS = 250;
 
 const NODE_ENV = process.env.NODE_ENV?.trim() || 'development';
 const PROD_FLAG = NODE_ENV === 'production';
+const ENV_SUFFIX = PROD_FLAG ? 'prod' : 'dev';
+export const MANIFEST_PATH = path.resolve(ROOT_DIR, `processed-posts.${ENV_SUFFIX}.json`);
+export const UPLOAD_DATA_DIR = path.resolve(ROOT_DIR, 'upload_data', ENV_SUFFIX);
 
 function pickEnvValue(): string {
   const prodValue = process.env.BLOG_API_URL?.trim();
