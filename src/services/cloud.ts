@@ -2,7 +2,7 @@
  * @Author: VBlazing
  * @Date: 2025-11-18 21:17:09
  * @LastEditors: VBlazing
- * @LastEditTime: 2025-11-20 14:31:26
+ * @LastEditTime: 2025-11-20 15:10:22
  * @Description: cloud service
  */
 import fs from 'node:fs/promises';
@@ -104,7 +104,6 @@ function ensureFetch(): typeof fetch {
 
 async function postRequestData(body: ArticleRequestBody): Promise<UploadPostResult> {
   const fetchFn = ensureFetch();
-  console.log('body: ', body.labels)
   const endpoint = new URL('/api/post', ensureTrailingSlash(BLOG_API_BASE_URL));
   const response = await fetchFn(endpoint, {
     method: 'POST',
