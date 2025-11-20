@@ -19,6 +19,7 @@ export interface ArchiveLayout {
 export type ArticleRequestBody = Record<string, unknown> & {
   slug: string;
   content: string;
+  labels?: string[]
 };
 
 export interface UploadPostPayload {

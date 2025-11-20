@@ -19,6 +19,7 @@ interface TransformResult {
 
 interface ParsedDataSection {
   raw: Record<string, unknown>;
+  labels?: string;
   slug: string;
 }
 
@@ -131,7 +132,7 @@ function stripSpecialSections(root: Root) {
   const filtered: Content[] = [];
   let removedHeading = false;
   let dataSectionNodes: Content[] | undefined;
-  for (let i = 0; i < children.length; ) {
+  for (let i = 0; i < children.length;) {
     const node = children[i];
     if (!removedHeading && isHeading(node, 1)) {
       removedHeading = true;
@@ -192,11 +193,15 @@ function findSectionEnd(
 }
 
 function composeRequestBody(parsedData: ParsedDataSection, content: string): ArticleRequestBody {
-  return {
+  const requestData: ArticleRequestBody = {
     ...parsedData.raw,
+    content,
     slug: parsedData.slug,
-    content
-  };
+  }
+  if (parsedData.labels) {
+    requestData.labels = parsedData.labels.split(',')
+  }
+  return requestData;
 }
 
 function parseDataSection(
@@ -227,7 +232,8 @@ function parseDataSection(
   }
   return {
     raw,
-    slug: slug.trim()
+    slug: slug.trim(),
+    labels: (raw.labels as string).trim(),
   };
 }
 

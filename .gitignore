@@ -3,6 +3,7 @@
 /posts
 /upload_data
 /processed-posts.prod.json
+/processed-posts.dev.json
 .env
 /.tmp
 
