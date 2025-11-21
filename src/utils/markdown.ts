@@ -46,8 +46,14 @@ export async function transformMarkdown(
     .use(remarkGfm)
     .use(remarkStringify, { fences: true, bullet: '-', listItemIndent: 'one' });
   const tree = processor.parse(parsed.content) as Root;
-  const { dataSectionNodes } = stripSpecialSections(tree);
+  const { dataSectionNodes, heroSectionNodes } = stripSpecialSections(tree);
   const parsedDataSection = parseDataSection(dataSectionNodes);
+  const heroImageUrl = await resolveHeroImageUrl(
+    heroSectionNodes,
+    markdownDir,
+    assetMap,
+    parsedDataSection.slug
+  );
   const imageNodes: Image[] = [];
   visit(tree as any, 'image', node => {
     imageNodes.push(node as Image);
@@ -79,7 +85,7 @@ export async function transformMarkdown(
   const processed = (await processor.run(tree)) as Root;
   const transformedContent = processor.stringify(processed as any);
   const normalizedContent = trimLeadingWhitespace(transformedContent);
-  const requestBody = composeRequestBody(parsedDataSection, normalizedContent);
+  const requestBody = composeRequestBody(parsedDataSection, normalizedContent, heroImageUrl);
   const finalMarkdown = matter.stringify(
     normalizedContent,
     parsed.data ?? undefined
@@ -127,16 +133,55 @@ async function tryUploadFromDisk(
   return uploaded;
 }
 
+async function resolveHeroImageUrl(
+  heroSectionNodes: Content[] | undefined,
+  markdownDir: string,
+  assetMap: Map<string, string>,
+  slug: string
+): Promise<string | undefined> {
+  if (!heroSectionNodes) return undefined;
+  const heroTree: Root = { type: 'root', children: heroSectionNodes };
+  const heroImages: Image[] = [];
+  visit(heroTree as any, 'image', node => {
+    heroImages.push(node as Image);
+  });
+  for (const image of heroImages) {
+    const originalUrl = image.url ? String(image.url) : '';
+    if (!originalUrl) continue;
+    if (isRemoteUrl(originalUrl)) {
+      console.warn(`hero 图片指向远程资源，跳过重新上传：${originalUrl}`);
+      continue;
+    }
+    const normalizedKey = normalizeMarkdownPath(originalUrl);
+    let remoteUrl = assetMap.get(normalizedKey);
+    if (!remoteUrl) {
+      remoteUrl = await tryUploadFromDisk(markdownDir, originalUrl, assetMap, slug);
+    }
+    if (remoteUrl) {
+      return remoteUrl;
+    }
+    console.warn(`无法处理 hero 图片: ${originalUrl}`);
+  }
+  return undefined;
+}
+
 function stripSpecialSections(root: Root) {
   const children = root.children as Content[];
   const filtered: Content[] = [];
   let removedHeading = false;
   let dataSectionNodes: Content[] | undefined;
+  let heroSectionNodes: Content[] | undefined;
   for (let i = 0; i < children.length;) {
     const node = children[i];
     if (!removedHeading && isHeading(node, 1)) {
       removedHeading = true;
       i += 1;
+      continue;
+    }
+    if (!heroSectionNodes && isTargetHeading(node, 2, 'hero')) {
+      const end = findSectionEnd(children, i + 1, 2);
+      heroSectionNodes = children.slice(i, end);
+      i = end;
       continue;
     }
     if (isTargetHeading(node, 2, '简介')) {
@@ -153,7 +198,7 @@ function stripSpecialSections(root: Root) {
     i += 1;
   }
   root.children = filtered;
-  return { dataSectionNodes };
+  return { dataSectionNodes, heroSectionNodes };
 }
 
 function isHeading(node: Content, depth: number): node is Heading {
@@ -192,7 +237,11 @@ function findSectionEnd(
   return cursor;
 }
 
-function composeRequestBody(parsedData: ParsedDataSection, content: string): ArticleRequestBody {
+function composeRequestBody(
+  parsedData: ParsedDataSection,
+  content: string,
+  heroImageUrl?: string
+): ArticleRequestBody {
   const requestData: ArticleRequestBody = {
     ...parsedData.raw,
     content,
@@ -200,6 +249,9 @@ function composeRequestBody(parsedData: ParsedDataSection, content: string): Art
   }
   if (parsedData.labels) {
     requestData.labels = parsedData.labels.split(',')
+  }
+  if (heroImageUrl) {
+    requestData.image_url = heroImageUrl;
   }
   return requestData;
 }
@@ -227,13 +279,15 @@ function parseDataSection(
   }
   const raw = parsedJson as Record<string, unknown>;
   const slug = raw.slug;
+  const labels =
+    typeof raw.labels === 'string' && raw.labels.trim().length ? raw.labels.trim() : undefined;
   if (typeof slug !== 'string' || !slug.trim()) {
     throw new Error('请求数据中缺少合法的 slug 字段');
   }
   return {
     raw,
     slug: slug.trim(),
-    labels: (raw.labels as string).trim(),
+    labels,
   };
 }
 
