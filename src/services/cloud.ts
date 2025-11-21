@@ -2,7 +2,7 @@
  * @Author: VBlazing
  * @Date: 2025-11-18 21:17:09
  * @LastEditors: VBlazing
- * @LastEditTime: 2025-11-20 15:10:22
+ * @LastEditTime: 2025-11-21 10:38:11
  * @Description: cloud service
  */
 import fs from 'node:fs/promises';
@@ -154,7 +154,7 @@ function trimTrailingSlash(input: string): string {
 function buildCosObjectKey(slug: string, filename: string): string {
   const safeSlug = sanitizeSlug(slug);
   const encodedFile = encodeURIComponent(filename);
-  const key = `${safeSlug}/${encodedFile}`;
+  const key = `blog/${safeSlug}/${encodedFile}`;
   return key.replace(/^\/+/, '');
 }
 
